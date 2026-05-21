@@ -1,13 +1,36 @@
-OpenCodeProxyHub is an independent project.
+OpenCodeProxyHub is an independent project licensed under the MIT License.
 
-This project is derived from and inspired by opencode-free-proxy:
-https://github.com/bigdata2211it-web/opencode-free-proxy
+This project is derived from and substantially inspired by:
+
+  opencode-free-proxy
+  https://github.com/bigdata2211it-web/opencode-free-proxy
 
 The original project declares the MIT License in its package metadata and README.
-OpenCodeProxyHub keeps attribution because the initial implementation reuses the
-same core idea and compatibility behavior: exposing OpenCode free models through
-OpenAI- and Anthropic-compatible API endpoints.
 
-OpenCodeProxyHub is not affiliated with OpenCode or any upstream service provider.
-The source license of this project does not grant rights to use third-party
-services beyond their own terms.
+OpenCodeProxyHub reimplements and extends the original project's core
+compatibility behavior, including:
+
+- exposing OpenCode free models through OpenAI-compatible and Anthropic-compatible endpoints
+- forwarding requests to the OpenCode Zen API
+- using the required x-opencode-* upstream request headers
+- model compatibility behavior for free model IDs
+- OpenAI/Anthropic message conversion concepts
+- API-key based local access control concepts
+
+OpenCodeProxyHub has since been substantially rewritten and expanded with:
+
+- TypeScript and Fastify backend architecture
+- React/Vite Web UI
+- hashed and recoverable API key management
+- model and settings persistence
+- proxy pool and chained proxy support
+- rate limiting
+- observability
+- Docker Compose deployment
+
+OpenCodeProxyHub is not affiliated with OpenCode, opencode-free-proxy, or any
+upstream service provider.
+
+The MIT License for this project applies only to this source code. It does not
+grant rights to use third-party services, APIs, trademarks, or infrastructure
+beyond their own terms.

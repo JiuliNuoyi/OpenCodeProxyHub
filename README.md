@@ -4,6 +4,21 @@ OpenCodeProxyHub is an independent AI API gateway that exposes OpenCode free mod
 
 The initial implementation focuses on a maintainable TypeScript + Fastify refactor of the lightweight proxy behavior. The long-term direction is a Web UI driven gateway with outbound proxy/IP pool support, rate limiting, observability, and high-concurrency deployment support.
 
+OpenCodeProxyHub is licensed under the MIT License. It is derived from and substantially inspired by [`opencode-free-proxy`](https://github.com/bigdata2211it-web/opencode-free-proxy), which also declares the MIT License.
+
+OpenCodeProxyHub is independent and is not affiliated with OpenCode, `opencode-free-proxy`, or any upstream service provider.
+
+## Tech Stack
+
+- Runtime: Node.js 20+
+- Backend: TypeScript, Fastify
+- Frontend: React, Vite, lucide-react
+- Storage: JSON files for local persistent configuration
+- Optional runtime state: Redis
+- Proxy support: HTTP, HTTPS, SOCKS5, and chained pre-proxy routing
+- Deployment: Docker and Docker Compose
+- License: MIT
+
 ## Current Features
 
 - OpenAI-compatible `POST /v1/chat/completions`
@@ -181,12 +196,29 @@ These files are ignored by Git.
 
 See `DEVELOPMENT_LOG.md` for the staged implementation plan.
 
-## Credits
+## License
 
-This project is derived from and inspired by `opencode-free-proxy`:
+OpenCodeProxyHub is released under the MIT License. See [`LICENSE`](./LICENSE).
+
+Attribution and third-party notices are maintained in:
+
+- [`NOTICE`](./NOTICE)
+- [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)
+
+The MIT License applies to this project's source code. It does not grant rights to use third-party services, APIs, trademarks, model providers, proxy providers, or infrastructure beyond their own terms.
+
+## Credits And Attribution
+
+This project is derived from and substantially inspired by `opencode-free-proxy`:
 
 ```text
 https://github.com/bigdata2211it-web/opencode-free-proxy
 ```
 
-OpenCodeProxyHub is independent and is not affiliated with OpenCode.
+The original project declares the MIT License in its `package.json` and `README.md`.
+
+OpenCodeProxyHub reimplements and extends the original project's core compatibility behavior, including OpenAI/Anthropic-compatible endpoints, OpenCode Zen API forwarding, `x-opencode-*` upstream headers, model compatibility behavior, and message conversion concepts.
+
+OpenCodeProxyHub has since been substantially rewritten and expanded with TypeScript/Fastify architecture, a React Web UI, API key management, proxy pool and chained proxy support, rate limiting, observability, and Docker deployment.
+
+OpenCodeProxyHub is independent and is not affiliated with OpenCode, `opencode-free-proxy`, or any upstream service provider.
