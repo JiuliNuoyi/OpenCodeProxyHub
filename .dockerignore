@@ -1,0 +1,14 @@
+node_modules
+web/node_modules
+dist
+web/dist
+coverage
+.git
+.env
+*.log
+api-keys.json
+models.json
+settings.json
+proxies.json
+data
+*.tsbuildinfo

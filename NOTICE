@@ -1,0 +1,13 @@
+OpenCodeProxyHub is an independent project.
+
+This project is derived from and inspired by opencode-free-proxy:
+https://github.com/bigdata2211it-web/opencode-free-proxy
+
+The original project declares the MIT License in its package metadata and README.
+OpenCodeProxyHub keeps attribution because the initial implementation reuses the
+same core idea and compatibility behavior: exposing OpenCode free models through
+OpenAI- and Anthropic-compatible API endpoints.
+
+OpenCodeProxyHub is not affiliated with OpenCode or any upstream service provider.
+The source license of this project does not grant rights to use third-party
+services beyond their own terms.

@@ -1,0 +1,160 @@
+import type { FastifyInstance } from "fastify";
+import type { ApiKeyPolicy, ApiKeyStore } from "../auth/apiKeys.js";
+import type { AppConfig } from "../config/env.js";
+import { adminAuthMode, isAdminRequest } from "../auth/adminAuth.js";
+import type { ModelConfigStore, ModelUpdateInput } from "../models/catalog.js";
+import type { SettingsStore, SystemSettingsUpdate } from "../settings/settingsStore.js";
+import type { ProxyInput, ProxyPoolStore } from "../proxy/proxyPool.js";
+import type { AsyncLimiter } from "../rateLimit/limiter.js";
+import type { RequestTracker } from "../runtime/requestTracker.js";
+import type { MetricsStore } from "../observability/metrics.js";
+
+interface CreateKeyBody {
+  name?: string;
+}
+
+interface UpdateKeyBody {
+  name?: string;
+  enabled?: boolean;
+  description?: string;
+  labels?: string[];
+  policy?: ApiKeyPolicy;
+}
+
+export const registerAdminRoutes = async (
+  app: FastifyInstance,
+  config: AppConfig,
+  keyStore: ApiKeyStore,
+  modelStore: ModelConfigStore,
+  settingsStore: SettingsStore,
+  proxyPool: ProxyPoolStore,
+  limiter: AsyncLimiter,
+  requestTracker: RequestTracker,
+  metrics: MetricsStore,
+): Promise<void> => {
+  app.addHook("preHandler", async (request, reply) => {
+    if (!request.url.startsWith("/admin/")) return;
+    if (isAdminRequest(request, config.adminPassword)) return;
+    return reply.code(401).send({ error: { message: "Unauthorized" } });
+  });
+
+  app.get("/admin/session", async (request) => ({
+    data: {
+      authenticated: true,
+      mode: adminAuthMode(request, config.adminPassword),
+    },
+  }));
+
+  app.get("/admin/api-keys", async () => ({ data: keyStore.list() }));
+
+  app.post<{ Body: CreateKeyBody }>("/admin/api-keys", async (request, reply) => {
+    try {
+      const created = keyStore.create(request.body?.name || "");
+      return reply.code(201).send({ data: created });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create API key";
+      return reply.code(400).send({ error: { message } });
+    }
+  });
+
+  app.get<{ Params: { id: string } }>("/admin/api-keys/:id/secret", async (request, reply) => {
+    const key = keyStore.getSecret(request.params.id);
+    if (!key) return reply.code(404).send({ error: { message: "API key plaintext is not available for this key" } });
+    return reply.send({ data: { key } });
+  });
+
+  app.patch<{ Params: { id: string }; Body: UpdateKeyBody }>("/admin/api-keys/:id", async (request, reply) => {
+    try {
+      const updated = keyStore.update(request.params.id, request.body || {});
+      return reply.send({ data: updated });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update API key";
+      const status = message === "API key not found" ? 404 : 400;
+      return reply.code(status).send({ error: { message } });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/admin/api-keys/:id", async (request, reply) => {
+    const deleted = keyStore.delete(request.params.id);
+    if (!deleted) return reply.code(404).send({ error: { message: "API key not found" } });
+    return reply.code(204).send();
+  });
+
+  app.get("/admin/models", async () => ({ data: modelStore.list() }));
+
+  app.put<{ Params: { id: string }; Body: ModelUpdateInput }>("/admin/models/:id", async (request, reply) => {
+    try {
+      const model = modelStore.upsert(request.params.id, request.body || {});
+      return reply.send({ data: model });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save model";
+      return reply.code(400).send({ error: { message } });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/admin/models/:id", async (request, reply) => {
+    const deleted = modelStore.delete(request.params.id);
+    if (!deleted) return reply.code(404).send({ error: { message: "Model not found" } });
+    return reply.code(204).send();
+  });
+
+  app.get("/admin/settings", async () => ({ data: settingsStore.get() }));
+
+  app.patch<{ Body: SystemSettingsUpdate }>("/admin/settings", async (request, reply) => {
+    try {
+      const settings = settingsStore.update(request.body || {});
+      return reply.send({ data: settings });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update settings";
+      return reply.code(400).send({ error: { message } });
+    }
+  });
+
+  app.get("/admin/proxies", async () => ({ data: proxyPool.list() }));
+
+  app.get("/admin/runtime", async () => ({
+    data: {
+      runtime: requestTracker.snapshot(),
+      limiter: await limiter.snapshot(),
+    },
+  }));
+
+  app.get("/admin/metrics", async () => ({ data: metrics.snapshot() }));
+
+  app.post<{ Body: ProxyInput }>("/admin/proxies", async (request, reply) => {
+    try {
+      const proxy = proxyPool.create(request.body || {});
+      return reply.code(201).send({ data: proxy });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create proxy";
+      return reply.code(400).send({ error: { message } });
+    }
+  });
+
+  app.patch<{ Params: { id: string }; Body: ProxyInput }>("/admin/proxies/:id", async (request, reply) => {
+    try {
+      const proxy = proxyPool.update(request.params.id, request.body || {});
+      return reply.send({ data: proxy });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update proxy";
+      const status = message === "Proxy not found" ? 404 : 400;
+      return reply.code(status).send({ error: { message } });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/admin/proxies/:id", async (request, reply) => {
+    const deleted = proxyPool.delete(request.params.id);
+    if (!deleted) return reply.code(404).send({ error: { message: "Proxy not found" } });
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string } }>("/admin/proxies/:id/test", async (request, reply) => {
+    try {
+      const proxy = await proxyPool.test(request.params.id);
+      return reply.send({ data: proxy });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to test proxy";
+      return reply.code(400).send({ error: { message } });
+    }
+  });
+};

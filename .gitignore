@@ -1,0 +1,14 @@
+node_modules/
+dist/
+web/dist/
+coverage/
+.env
+.env.docker
+*.log
+logs/
+api-keys.json
+models.json
+settings.json
+proxies.json
+data/
+*.tsbuildinfo
