@@ -54,6 +54,32 @@ Layout follow-up:
 - Added horizontal overflow protection and a minimum desktop table width so rows no longer exceed the panel background.
 - Preserved responsive card behavior on narrower screens.
 
+## 2026-05-21: Half-Width Browser Responsive Pass
+
+Status: complete
+
+Implemented:
+
+- Added a dedicated `980px` breakpoint for desktop half-window and small-tablet layouts.
+- At `980px` and below:
+  - left rail becomes a top horizontal navigation bar
+  - workspace uses normal page scrolling instead of fixed viewport scrolling
+  - top status bar stacks vertically
+  - hero panel is compressed and single-column
+  - main grid becomes single-column
+  - topology becomes vertical
+  - `fullBleed` panels remove negative margins
+  - API Key rows switch to card layout without horizontal table scrolling
+  - proxy strategy cards, proxy form, proxy cards, monitor cards, and monitor columns become single-column
+- Changed metric cards to `auto-fit` so they adapt across desktop, half-window, and mobile widths.
+- Added overflow wrapping for long key prefixes, proxy URLs, proxy errors, and recent error text.
+
+Verified:
+
+- `npm run build:all` passes.
+- Docker app image rebuilt successfully.
+- `/app` returns 200 and app/Redis services are healthy.
+
 ## 2026-05-20: Frontend Redesign Plan
 
 Status: planned
