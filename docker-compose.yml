@@ -19,6 +19,7 @@ services:
       MODELS_FILE: /app/data/models.json
       SETTINGS_FILE: /app/data/settings.json
       PROXIES_FILE: /app/data/proxies.json
+      LOGS_DIR: /app/logs
       REDIS_URL: redis://redis:6379
       STORE_PLAINTEXT_API_KEYS: "true"
       OUTBOUND_PRE_PROXY_ENABLED: "true"
@@ -28,6 +29,7 @@ services:
       - "6446:6446"
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:6446/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

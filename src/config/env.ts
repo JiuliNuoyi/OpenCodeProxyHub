@@ -20,6 +20,7 @@ export interface AppConfig {
   modelsFile: string;
   settingsFile: string;
   proxiesFile: string;
+  logsDir: string;
   adminPassword: string;
   zenHost: string;
   zenPath: string;
@@ -44,6 +45,7 @@ export const loadConfig = (): AppConfig => ({
   modelsFile: process.env.MODELS_FILE || "./models.json",
   settingsFile: process.env.SETTINGS_FILE || "./settings.json",
   proxiesFile: process.env.PROXIES_FILE || "./proxies.json",
+  logsDir: process.env.LOGS_DIR || "./logs",
   adminPassword: process.env.ADMIN_PASSWORD || process.env.ADMIN_TOKEN || "admin",
   zenHost: process.env.ZEN_HOST || "opencode.ai",
   zenPath: process.env.ZEN_PATH || "/zen/v1/chat/completions",

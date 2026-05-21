@@ -50,6 +50,11 @@ interface SystemSettings {
   defaultStream: boolean;
   logPrompts: boolean;
   openAiStreamTransformModels: string[];
+  logEnabled: boolean;
+  logAudit: boolean;
+  logApiRequests: boolean;
+  logMaxBodyChars: number;
+  logRetentionDays: number;
 }
 
 interface ProxyNode {
@@ -606,7 +611,12 @@ function App() {
               <label>上游超时（毫秒）<input disabled={busy} type="number" value={settings.upstreamTimeoutMs} onChange={(event) => updateSettings({ upstreamTimeoutMs: Number(event.target.value) }).catch(handleActionError).finally(() => setBusy(false))} /></label>
               <label>请求体限制（字节）<input disabled={busy} type="number" value={settings.requestBodyLimitBytes} onChange={(event) => updateSettings({ requestBodyLimitBytes: Number(event.target.value) }).catch(handleActionError).finally(() => setBusy(false))} /></label>
               <label className="switchLine"><input disabled={busy} type="checkbox" checked={settings.defaultStream} onChange={(event) => updateSettings({ defaultStream: event.target.checked }).catch(handleActionError).finally(() => setBusy(false))} /> 默认流式输出</label>
+              <label className="switchLine"><input disabled={busy} type="checkbox" checked={settings.logEnabled} onChange={(event) => updateSettings({ logEnabled: event.target.checked }).catch(handleActionError).finally(() => setBusy(false))} /> 启用文件日志</label>
+              <label className="switchLine"><input disabled={busy || !settings.logEnabled} type="checkbox" checked={settings.logAudit} onChange={(event) => updateSettings({ logAudit: event.target.checked }).catch(handleActionError).finally(() => setBusy(false))} /> 记录管理审计</label>
+              <label className="switchLine"><input disabled={busy || !settings.logEnabled} type="checkbox" checked={settings.logApiRequests} onChange={(event) => updateSettings({ logApiRequests: event.target.checked }).catch(handleActionError).finally(() => setBusy(false))} /> 记录 AI 请求摘要</label>
               <label className="switchLine"><input disabled={busy} type="checkbox" checked={settings.logPrompts} onChange={(event) => updateSettings({ logPrompts: event.target.checked }).catch(handleActionError).finally(() => setBusy(false))} /> 记录 Prompt</label>
+              <label>日志最大正文字符<input disabled={busy || !settings.logEnabled} type="number" value={settings.logMaxBodyChars} onChange={(event) => updateSettings({ logMaxBodyChars: Number(event.target.value) }).catch(handleActionError).finally(() => setBusy(false))} /></label>
+              <label>日志保留天数<input disabled={busy || !settings.logEnabled} type="number" value={settings.logRetentionDays} onChange={(event) => updateSettings({ logRetentionDays: Number(event.target.value) }).catch(handleActionError).finally(() => setBusy(false))} /></label>
             </div>}
           </article>}
 

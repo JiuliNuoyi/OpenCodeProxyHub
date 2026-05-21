@@ -6,6 +6,11 @@ export interface SystemSettings {
   defaultStream: boolean;
   logPrompts: boolean;
   openAiStreamTransformModels: string[];
+  logEnabled: boolean;
+  logAudit: boolean;
+  logApiRequests: boolean;
+  logMaxBodyChars: number;
+  logRetentionDays: number;
 }
 
 interface SettingsFile {
@@ -21,6 +26,11 @@ const DEFAULT_SETTINGS: SystemSettings = {
   defaultStream: false,
   logPrompts: false,
   openAiStreamTransformModels: [],
+  logEnabled: false,
+  logAudit: true,
+  logApiRequests: true,
+  logMaxBodyChars: 2000,
+  logRetentionDays: 7,
 };
 
 export class SettingsStore {
@@ -59,6 +69,17 @@ export class SettingsStore {
 
     if (input.defaultStream !== undefined) this.settings.defaultStream = Boolean(input.defaultStream);
     if (input.logPrompts !== undefined) this.settings.logPrompts = Boolean(input.logPrompts);
+    if (input.logEnabled !== undefined) this.settings.logEnabled = Boolean(input.logEnabled);
+    if (input.logAudit !== undefined) this.settings.logAudit = Boolean(input.logAudit);
+    if (input.logApiRequests !== undefined) this.settings.logApiRequests = Boolean(input.logApiRequests);
+    if (input.logMaxBodyChars !== undefined) {
+      if (!Number.isFinite(input.logMaxBodyChars) || input.logMaxBodyChars < 0) throw new Error("logMaxBodyChars must be at least 0");
+      this.settings.logMaxBodyChars = Math.trunc(input.logMaxBodyChars);
+    }
+    if (input.logRetentionDays !== undefined) {
+      if (!Number.isFinite(input.logRetentionDays) || input.logRetentionDays < 0) throw new Error("logRetentionDays must be at least 0");
+      this.settings.logRetentionDays = Math.trunc(input.logRetentionDays);
+    }
     if (input.openAiStreamTransformModels !== undefined) {
       if (!Array.isArray(input.openAiStreamTransformModels)) {
         throw new Error("openAiStreamTransformModels must be an array");

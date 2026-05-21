@@ -11,6 +11,7 @@ import type { ProxyPoolStore } from "../proxy/proxyPool.js";
 import type { AsyncLimiter } from "../rateLimit/limiter.js";
 import type { RequestTracker } from "../runtime/requestTracker.js";
 import type { MetricsStore } from "../observability/metrics.js";
+import { clientIdFromHeaders, type EventLogger } from "../observability/eventLogger.js";
 
 export const registerOpenAIRoutes = async (
   app: FastifyInstance,
@@ -23,8 +24,10 @@ export const registerOpenAIRoutes = async (
   limiter: AsyncLimiter,
   requestTracker: RequestTracker,
   metrics: MetricsStore,
+  eventLogger: EventLogger,
 ): Promise<void> => {
   app.post<{ Body: OpenAIChatRequest }>("/v1/chat/completions", async (request, reply) => {
+    const started = process.hrtime.bigint();
     const releaseRequest = requestTracker.acquire();
     if (!releaseRequest) {
       return reply.code(503).header("Retry-After", "5").send({ error: { message: "Server is draining", type: "service_unavailable" } });
@@ -89,6 +92,25 @@ export const registerOpenAIRoutes = async (
 
     const sessionId = sessions.getSession(sessionScopeFromHeaders(auth.id, "openai", model, request.headers));
     app.log.info({ user: auth.name, model, stream: isStream, messageCount: messages.length }, "openai_request");
+    const logRequest = (statusCode: number, extra: Record<string, unknown> = {}) => {
+      const currentSettings = settingsStore.get();
+      eventLogger.apiRequest({
+        protocol: "openai",
+        route: "/v1/chat/completions",
+        apiKeyId: auth.id,
+        apiKeyName: auth.name,
+        clientId: clientIdFromHeaders(request.headers),
+        model,
+        stream: isStream,
+        messageCount: messages.length,
+        statusCode,
+        durationMs: Math.round(Number(process.hrtime.bigint() - started) / 1_000_000),
+        ...(currentSettings.logPrompts ? { promptPreview: eventLogger.truncate(messages) } : {}),
+        transform: isStream && currentSettings.openAiStreamTransformModels.includes(model) ? "anthropic-sse-to-openai" : "passthrough",
+        ...extra,
+      });
+    };
+    reply.raw.once("finish", () => logRequest(reply.raw.statusCode));
 
     const prepared = prepareZenRequest(config, {
       model,

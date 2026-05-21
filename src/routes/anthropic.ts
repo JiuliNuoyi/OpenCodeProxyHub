@@ -10,6 +10,7 @@ import type { ProxyPoolStore } from "../proxy/proxyPool.js";
 import type { AsyncLimiter } from "../rateLimit/limiter.js";
 import type { RequestTracker } from "../runtime/requestTracker.js";
 import type { MetricsStore } from "../observability/metrics.js";
+import { clientIdFromHeaders, type EventLogger } from "../observability/eventLogger.js";
 
 export const registerAnthropicRoutes = async (
   app: FastifyInstance,
@@ -21,8 +22,10 @@ export const registerAnthropicRoutes = async (
   limiter: AsyncLimiter,
   requestTracker: RequestTracker,
   metrics: MetricsStore,
+  eventLogger: EventLogger,
 ): Promise<void> => {
   app.post<{ Body: AnthropicMessageRequest }>("/v1/messages", async (request, reply) => {
+    const started = process.hrtime.bigint();
     const releaseRequest = requestTracker.acquire();
     if (!releaseRequest) {
       return reply.code(503).header("Retry-After", "5").send({ type: "error", error: { type: "service_unavailable", message: "Server is draining" } });
@@ -73,6 +76,23 @@ export const registerAnthropicRoutes = async (
     const { messages, tools, toolChoice, parameters } = anthropicToOpenAI(request.body);
     const inputTokens = Math.trunc(JSON.stringify(messages).length / 4);
     app.log.info({ user: auth.name, model, stream: isStream, messageCount: messages.length }, "anthropic_request");
+    const logRequest = (statusCode: number, extra: Record<string, unknown> = {}) => {
+      eventLogger.apiRequest({
+        protocol: "anthropic",
+        route: "/v1/messages",
+        apiKeyId: auth.id,
+        apiKeyName: auth.name,
+        clientId: clientIdFromHeaders(request.headers),
+        model,
+        stream: isStream,
+        messageCount: messages.length,
+        statusCode,
+        durationMs: Math.round(Number(process.hrtime.bigint() - started) / 1_000_000),
+        ...(eventLogger.shouldLogPrompts() ? { promptPreview: eventLogger.truncate(messages) } : {}),
+        ...extra,
+      });
+    };
+    reply.raw.once("finish", () => logRequest(reply.raw.statusCode));
 
     const prepared = prepareZenRequest(config, {
       model,

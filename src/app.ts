@@ -15,6 +15,7 @@ import { ProxyPoolStore } from "./proxy/proxyPool.js";
 import { createLimiter } from "./rateLimit/limiter.js";
 import { RequestTracker } from "./runtime/requestTracker.js";
 import { MetricsStore, registerMetricsHooks } from "./observability/metrics.js";
+import { EventLogger } from "./observability/eventLogger.js";
 
 export const buildApp = async (config: AppConfig) => {
   const settingsStore = new SettingsStore(config.settingsFile, { upstreamTimeoutMs: config.upstreamTimeoutMs });
@@ -23,6 +24,7 @@ export const buildApp = async (config: AppConfig) => {
 
   const app = Fastify({ logger: true, bodyLimit: settings.requestBodyLimitBytes });
   const metrics = new MetricsStore();
+  const eventLogger = new EventLogger(settingsStore, config.logsDir);
   registerMetricsHooks(app, metrics);
   await app.register(cors, {
     origin: "*",
@@ -53,9 +55,9 @@ export const buildApp = async (config: AppConfig) => {
 
   await registerHealthRoutes(app, modelStore);
   await registerModelRoutes(app, modelStore);
-  await registerAdminRoutes(app, config, keyStore, modelStore, settingsStore, proxyPool, limiter, requestTracker, metrics);
-  await registerOpenAIRoutes(app, config, keyStore, modelStore, settingsStore, sessions, proxyPool, limiter, requestTracker, metrics);
-  await registerAnthropicRoutes(app, config, keyStore, modelStore, sessions, proxyPool, limiter, requestTracker, metrics);
+  await registerAdminRoutes(app, config, keyStore, modelStore, settingsStore, proxyPool, limiter, requestTracker, metrics, eventLogger);
+  await registerOpenAIRoutes(app, config, keyStore, modelStore, settingsStore, sessions, proxyPool, limiter, requestTracker, metrics, eventLogger);
+  await registerAnthropicRoutes(app, config, keyStore, modelStore, sessions, proxyPool, limiter, requestTracker, metrics, eventLogger);
   await registerWebRoutes(app);
 
   app.setNotFoundHandler(async (_request, reply) => {
