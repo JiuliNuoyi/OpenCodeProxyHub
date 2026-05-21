@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import type { ApiKeyStore } from "../auth/apiKeys.js";
 import type { AppConfig } from "../config/env.js";
 import type { ModelConfigStore } from "../models/catalog.js";
+import type { SettingsStore } from "../settings/settingsStore.js";
 import { prepareZenRequest, pipeZenOpenAIResponse } from "../providers/zenClient.js";
+import { pipeAnthropicSseAsOpenAI } from "../converters/anthropicSseToOpenAi.js";
 import { SessionStore, sessionScopeFromHeaders } from "../sessions/sessionStore.js";
 import type { OpenAIChatRequest } from "../types/api.js";
 import type { ProxyPoolStore } from "../proxy/proxyPool.js";
@@ -15,6 +17,7 @@ export const registerOpenAIRoutes = async (
   config: AppConfig,
   keyStore: ApiKeyStore,
   modelStore: ModelConfigStore,
+  settingsStore: SettingsStore,
   sessions: SessionStore,
   proxyPool: ProxyPoolStore,
   limiter: AsyncLimiter,
@@ -98,6 +101,11 @@ export const registerOpenAIRoutes = async (
     }, auth.policy.allowProxy === false ? undefined : proxyPool);
 
     reply.hijack();
+    const transformModels = settingsStore.get().openAiStreamTransformModels;
+    if (isStream && transformModels.includes(model)) {
+      pipeAnthropicSseAsOpenAI(prepared, model, reply.raw, auth.policy.allowProxy === false ? undefined : proxyPool, metrics);
+      return;
+    }
     pipeZenOpenAIResponse(prepared, isStream, reply.raw, auth.policy.allowProxy === false ? undefined : proxyPool, metrics);
   });
 };

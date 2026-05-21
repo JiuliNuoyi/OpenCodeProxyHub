@@ -82,7 +82,7 @@ Verified:
 
 ## 2026-05-20: Frontend Redesign Plan
 
-Status: planned
+Status: complete
 
 Design direction:
 
@@ -1184,3 +1184,269 @@ Operational note:
 
 - Change `ADMIN_PASSWORD` from `admin` before exposing the service beyond local/private testing.
 - API keys are now only for OpenAI/Anthropic-compatible client requests, not console login.
+
+## 2026-05-21: OpenAI Stream Protocol Normalization Plan
+
+Status: planned
+
+Context:
+
+- Local testing showed `qwen3.6-plus-free` succeeds when called with `stream=true` but the upstream returns Anthropic-style SSE events through the OpenAI-compatible `/v1/chat/completions` route.
+- The observed response shape is `event:message_start`, `event:content_block_delta`, `thinking_delta`, `text_delta`, and `message_stop` instead of OpenAI Chat Completions chunks.
+- Standard OpenAI streaming clients expect `data: {"choices":[{"delta":...}]}` frames followed by `data: [DONE]`.
+- Because the request is made to `/v1/chat/completions`, OPH should return OpenAI-compatible SSE regardless of the upstream provider-specific stream format.
+- A comparison run against the upstream reference project `G:\opencode-free-proxy` showed the same passthrough behavior for `qwen3.6-plus-free`, so OPH needs an explicit compatibility improvement rather than only matching the reference implementation.
+
+Goal:
+
+- Add an independent Anthropic SSE to OpenAI Chat Completions SSE conversion feature for the OpenAI streaming endpoint.
+- Enable the conversion only for an operator-managed whitelist of models.
+- Preserve current passthrough behavior for models not in the whitelist.
+- Support normal assistant text, reasoning/thinking deltas, and streaming tool calls.
+
+Non-goals for the first implementation:
+
+- Do not change `/v1/messages` Anthropic behavior.
+- Do not globally auto-convert every OpenAI streaming response.
+- Do not change non-streaming `/v1/chat/completions` behavior in the first pass.
+- Do not attempt exact token accounting beyond forwarding usable usage metadata when available.
+- Do not remove passthrough support for upstream responses that are already OpenAI-compatible.
+
+Configuration design:
+
+- Add a setting named `openAiStreamTransformModels` to the system settings file.
+- Initial recommended value:
+
+```json
+{
+  "version": 1,
+  "settings": {
+    "openAiStreamTransformModels": ["qwen3.6-plus-free"]
+  }
+}
+```
+
+- The setting means: when a client calls `/v1/chat/completions` with `stream=true` and the requested model is in this list, OPH converts Anthropic-style upstream SSE into OpenAI Chat Completions SSE.
+- If the requested model is not listed, OPH keeps the existing streaming passthrough path.
+- Future extension can replace the array with a transform map if multiple transform types are needed, for example `{ "qwen3.6-plus-free": "anthropic-sse-to-openai" }`.
+
+Proposed code structure:
+
+- Add a dedicated converter module:
+
+```text
+src/converters/anthropicSseToOpenAi.ts
+```
+
+- Keep the conversion logic separate from generic Zen transport code where practical.
+- The OpenAI route or Zen streaming helper should select between:
+  - existing passthrough pipe for normal models
+  - new Anthropic SSE to OpenAI SSE pipe for whitelist models
+- The route decision should be based on the original requested model ID, not the upstream's returned model alias.
+
+Selection flow:
+
+```text
+POST /v1/chat/completions
+  authenticate API key
+  validate model
+  validate model permissions
+  prepare Zen request
+  if stream=true and model in openAiStreamTransformModels
+    pipe upstream through anthropicSseToOpenAi converter
+  else
+    use existing pipeZenOpenAIResponse passthrough
+```
+
+OpenAI SSE output contract:
+
+- Response status should be `200` after a valid upstream stream starts.
+- Response content type should be `text/event-stream`.
+- Output frames should use OpenAI Chat Completions chunk format:
+
+```text
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1779360000,"model":"qwen3.6-plus-free","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1779360000,"model":"qwen3.6-plus-free","choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1779360000,"model":"qwen3.6-plus-free","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+Anthropic text and reasoning mapping:
+
+- `message_start`:
+  - initialize OpenAI stream state
+  - emit one assistant role chunk with `delta.role = "assistant"`
+- `content_block_delta` with `delta.type = "text_delta"`:
+  - emit OpenAI chunk with `delta.content = delta.text`
+- `content_block_delta` with `delta.type = "thinking_delta"`:
+  - emit OpenAI-compatible reasoning chunk using `delta.reasoning_content = delta.thinking`
+  - do not mix reasoning text into `delta.content`
+- `signature_delta`:
+  - ignore in the OpenAI stream
+- `ping`:
+  - ignore, or optionally send an SSE comment heartbeat if needed later
+
+Tool calling mapping:
+
+- On `content_block_start` where `content_block.type = "tool_use"`:
+  - assign a stable OpenAI `tool_calls[].index`
+  - store mapping from Anthropic `content_block.index` to OpenAI tool call index
+  - emit an OpenAI tool call initialization chunk:
+
+```json
+{
+  "choices": [
+    {
+      "index": 0,
+      "delta": {
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "toolu_xxx",
+            "type": "function",
+            "function": {
+              "name": "tool_name",
+              "arguments": ""
+            }
+          }
+        ]
+      },
+      "finish_reason": null
+    }
+  ]
+}
+```
+
+- On `content_block_delta` where `delta.type = "input_json_delta"`:
+  - find the mapped OpenAI tool call index for the current Anthropic block index
+  - emit an OpenAI tool argument delta chunk:
+
+```json
+{
+  "choices": [
+    {
+      "index": 0,
+      "delta": {
+        "tool_calls": [
+          {
+            "index": 0,
+            "function": {
+              "arguments": "partial json text"
+            }
+          }
+        ]
+      },
+      "finish_reason": null
+    }
+  ]
+}
+```
+
+- If `content_block_start` includes an initial `input` object, serialize it only if the upstream does not also send `input_json_delta`; otherwise prefer the streaming delta to avoid duplicated arguments.
+- Multiple tool calls should be supported by maintaining a block-to-tool-index map and incrementing `nextToolIndex` for each new `tool_use` block.
+- When Anthropic `message_delta.stop_reason` indicates `tool_use`, finish with OpenAI `finish_reason = "tool_calls"`.
+
+Finish reason mapping:
+
+- `end_turn` -> `stop`
+- `tool_use` -> `tool_calls`
+- `max_tokens` -> `length`
+- missing or unknown stop reason -> `stop`
+- On `message_stop`, emit the final OpenAI chunk and `data: [DONE]` exactly once.
+
+Error handling:
+
+- If the first upstream payload is a JSON error object, return an OpenAI-style error response when headers have not been sent.
+- If upstream emits an Anthropic error event before any OpenAI chunk has been sent, map it to an OpenAI-style error response.
+- If upstream fails after stream headers or chunks have been sent, end the stream with best-effort `[DONE]` only when safe; otherwise close the connection and record metrics.
+- Preserve existing timeout and proxy failure tracking behavior.
+- Continue recording upstream status and latency in metrics.
+
+Parser design:
+
+- Maintain a text buffer across upstream chunks.
+- Parse SSE by event blocks separated by blank lines.
+- For each block, collect:
+  - optional `event:` value
+  - one or more `data:` lines joined with newlines
+- Ignore empty blocks.
+- Parse JSON data when possible.
+- Treat non-JSON `data: [DONE]` as a stream terminator.
+- Avoid assuming each upstream TCP chunk contains a complete SSE event.
+
+Runtime state design:
+
+```ts
+interface TransformState {
+  id: string;
+  created: number;
+  model: string;
+  roleSent: boolean;
+  blockToToolIndex: Map<number, number>;
+  nextToolIndex: number;
+  sawToolCall: boolean;
+  stopReason: "stop" | "tool_calls" | "length";
+  doneSent: boolean;
+}
+```
+
+Compatibility notes:
+
+- Some clients ignore non-standard `reasoning_content`; this is acceptable because final text still arrives through `delta.content`.
+- Clients that support DeepSeek/R1-style reasoning can display `reasoning_content`.
+- The converter should not emit Anthropic `event:` names on the OpenAI endpoint.
+- The converter should always emit OpenAI `data:` frames and a terminal `data: [DONE]`.
+
+Testing plan:
+
+- Manual streaming test for `qwen3.6-plus-free` through `/v1/chat/completions` should return OpenAI-style SSE chunks rather than Anthropic `event:` frames.
+- Confirm the final visible answer appears through `choices[0].delta.content`.
+- Confirm reasoning appears through `choices[0].delta.reasoning_content` and not in normal content.
+- Confirm `deepseek-v4-flash-free` is unchanged when not in the whitelist.
+- Confirm invalid API key still returns `401`.
+- Confirm unknown model still returns `400`.
+- Confirm non-streaming `qwen3.6-plus-free` behavior is unchanged in the first pass.
+- Add a converter unit-style fixture if the project test setup remains lightweight:
+  - input Anthropic text SSE -> output OpenAI content chunks
+  - input Anthropic thinking SSE -> output OpenAI reasoning chunks
+  - input Anthropic tool_use SSE -> output OpenAI tool_calls chunks
+  - fragmented SSE input across chunks -> output remains correct
+
+Implementation risk and mitigation:
+
+- Risk: incorrectly converting a model that already returns OpenAI SSE.
+  - Mitigation: whitelist only, default empty or targeted list.
+- Risk: client incompatibility with `reasoning_content`.
+  - Mitigation: keep final text in `content`; `reasoning_content` is additive.
+- Risk: incomplete tool call conversion.
+  - Mitigation: support the common `tool_use` and `input_json_delta` path first, preserve indexes carefully, and add fixtures.
+- Risk: stream chunk boundaries split SSE frames.
+  - Mitigation: buffer and parse by SSE event block rather than by raw chunk.
+- Risk: duplicated finalization.
+  - Mitigation: maintain `doneSent` state and emit `[DONE]` only once.
+
+Suggested rollout:
+
+- Add the converter and setting with `qwen3.6-plus-free` in the local default settings.
+- Verify locally with the known API key and base URL `http://127.0.0.1:6446/v1`.
+- Test a non-whitelisted model to prove passthrough is preserved.
+- After validation, expose the whitelist setting in the Web UI if operators need runtime control.
+
+Implemented:
+
+- Added `src/converters/anthropicSseToOpenAi.ts` as an independent stream conversion module.
+- Added `openAiStreamTransformModels` to system settings with input cleanup and de-duplication.
+- Routed `/v1/chat/completions` `stream=true` requests through the converter only when the requested model is in the whitelist.
+- Added model-page Web UI controls for hot-reloading the OpenAI stream conversion whitelist per model.
+- Rebuilt and restarted the local Docker stack so the Web UI and runtime conversion are available at `http://127.0.0.1:6446/app`.
+
+Verified:
+
+- `npm run build:all` passes.
+- Docker app and Redis services are healthy after rebuild.
+- `GET /health` returns `status=ok`.
+- `GET /admin/settings` shows `openAiStreamTransformModels` persisted with `qwen3.6-plus-free` in Docker data.
+- Manual `qwen3.6-plus-free` streaming validation in local development returned OpenAI `data:` chunks with `reasoning_content`, final `content`, and terminal `data: [DONE]` without Anthropic `event:` frames.

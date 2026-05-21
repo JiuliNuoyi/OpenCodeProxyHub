@@ -229,6 +229,21 @@ h1 { margin: 16px 0 10px; font-size: clamp(48px, 6.4vw, 104px); line-height: 0.9
 .modelStack.live { align-items: flex-start; }
 .modelChip { border-radius: 999px; padding: 10px 12px; font-size: 13px; color: #b9d5dd; }
 .modelChip.disabled { color: rgba(255,255,255,0.42); border-color: rgba(255,85,112,0.28); background: rgba(255,85,112,0.06); text-decoration: line-through; }
+.modelPanel { min-height: 260px; }
+.panelHint { color: var(--muted); font-size: 13px; line-height: 1.55; margin: -4px 0 16px; }
+.modelCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.modelCard { border: 1px solid rgba(86,232,255,0.14); border-radius: 20px; padding: 15px; background: linear-gradient(145deg, rgba(255,255,255,0.035), rgba(0,0,0,0.16)); display: grid; gap: 12px; }
+.modelCard.disabled { border-color: rgba(255,85,112,0.18); opacity: 0.72; }
+.modelCardHead { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.modelCardHead code { color: var(--cyan); font-family: var(--mono); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.modelMeta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.modelMeta span { border-color: rgba(255,255,255,0.08); background: rgba(255,255,255,0.025); padding: 5px 7px; }
+.transformToggle { display: flex; gap: 10px; align-items: flex-start; border: 1px solid rgba(125,255,178,0.13); border-radius: 16px; padding: 11px; background: rgba(125,255,178,0.035); cursor: pointer; }
+.transformToggle input { width: auto; margin-top: 2px; accent-color: var(--green); }
+.transformToggle span { border: 0; padding: 0; background: transparent; color: var(--text); border-radius: 0; }
+.transformToggle strong, .transformToggle small { display: block; }
+.transformToggle small { margin-top: 3px; color: var(--muted); line-height: 1.45; }
+.modelActions { justify-content: flex-start; }
 .settingsPanel { min-height: 260px; }
 .settingsGrid { display: grid; gap: 12px; }
 .settingsGrid label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; }

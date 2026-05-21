@@ -49,6 +49,7 @@ interface SystemSettings {
   upstreamTimeoutMs: number;
   defaultStream: boolean;
   logPrompts: boolean;
+  openAiStreamTransformModels: string[];
 }
 
 interface ProxyNode {
@@ -337,6 +338,22 @@ function App() {
     setBusy(false);
   };
 
+  const toggleOpenAiStreamTransform = async (model: ModelItem) => {
+    if (!settings) return;
+    setBusy(true);
+    const current = settings.openAiStreamTransformModels || [];
+    const next = current.includes(model.id)
+      ? current.filter((id) => id !== model.id)
+      : [...current, model.id];
+    const result = await apiFetch<{ data: SystemSettings }>("/admin/settings", token, {
+      method: "PATCH",
+      body: JSON.stringify({ openAiStreamTransformModels: next }),
+    });
+    setSettings(result.data);
+    setNotice(`OpenAI 流式转换白名单已实时${next.includes(model.id) ? "启用" : "关闭"}，新请求立即生效`);
+    setBusy(false);
+  };
+
   const updateSettings = async (patch: Partial<SystemSettings>) => {
     setBusy(true);
     const result = await apiFetch<{ data: SystemSettings }>("/admin/settings", token, {
@@ -559,10 +576,27 @@ function App() {
             </div>
           </article>}
 
-          {(view === "dashboard" || view === "models") && <article className="panel">
+          {(view === "dashboard" || view === "models") && <article className="panel modelPanel">
             <div className="panelHeader compact"><div><Activity size={18} /><h2>模型开放面</h2></div></div>
-            <div className="modelStack live">
-              {models.map((model) => <button disabled={busy} key={model.id} className={model.enabled ? "modelChip" : "modelChip disabled"} onClick={() => toggleModel(model).catch(handleActionError).finally(() => setBusy(false))}>{model.id}</button>)}
+            {view === "models" && <p className="panelHint">OpenAI 流式转换会把白名单模型的 Anthropic SSE 转为 ChatCompletions SSE；保存后热重载，新请求立即生效。</p>}
+            <div className="modelStack live modelCards">
+              {models.map((model) => {
+                const transformEnabled = Boolean(settings?.openAiStreamTransformModels?.includes(model.id));
+                return (
+                  <div className={model.enabled ? "modelCard" : "modelCard disabled"} key={model.id}>
+                    <div className="modelCardHead">
+                      <code>{model.id}</code>
+                      <span className={model.enabled ? "statusPill enabled" : "statusPill disabled"}>{model.enabled ? "启用" : "禁用"}</span>
+                    </div>
+                    <div className="modelMeta"><span>{model.ownedBy}</span><span>{model.created}</span></div>
+                    <label className="transformToggle">
+                      <input disabled={busy || !settings} type="checkbox" checked={transformEnabled} onChange={() => toggleOpenAiStreamTransform(model).catch(handleActionError).finally(() => setBusy(false))} />
+                      <span><strong>OpenAI 流式转换</strong><small>{transformEnabled ? "Anthropic SSE -> OpenAI SSE" : "直通上游流式响应"}</small></span>
+                    </label>
+                    <div className="rowActions modelActions"><button disabled={busy} onClick={() => toggleModel(model).catch(handleActionError).finally(() => setBusy(false))}>{model.enabled ? "禁用模型" : "启用模型"}</button></div>
+                  </div>
+                );
+              })}
             </div>
           </article>}
 

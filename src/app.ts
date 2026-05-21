@@ -54,7 +54,7 @@ export const buildApp = async (config: AppConfig) => {
   await registerHealthRoutes(app, modelStore);
   await registerModelRoutes(app, modelStore);
   await registerAdminRoutes(app, config, keyStore, modelStore, settingsStore, proxyPool, limiter, requestTracker, metrics);
-  await registerOpenAIRoutes(app, config, keyStore, modelStore, sessions, proxyPool, limiter, requestTracker, metrics);
+  await registerOpenAIRoutes(app, config, keyStore, modelStore, settingsStore, sessions, proxyPool, limiter, requestTracker, metrics);
   await registerAnthropicRoutes(app, config, keyStore, modelStore, sessions, proxyPool, limiter, requestTracker, metrics);
   await registerWebRoutes(app);
 

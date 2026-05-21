@@ -5,6 +5,7 @@ export interface SystemSettings {
   upstreamTimeoutMs: number;
   defaultStream: boolean;
   logPrompts: boolean;
+  openAiStreamTransformModels: string[];
 }
 
 interface SettingsFile {
@@ -19,6 +20,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   upstreamTimeoutMs: 120000,
   defaultStream: false,
   logPrompts: false,
+  openAiStreamTransformModels: [],
 };
 
 export class SettingsStore {
@@ -57,6 +59,14 @@ export class SettingsStore {
 
     if (input.defaultStream !== undefined) this.settings.defaultStream = Boolean(input.defaultStream);
     if (input.logPrompts !== undefined) this.settings.logPrompts = Boolean(input.logPrompts);
+    if (input.openAiStreamTransformModels !== undefined) {
+      if (!Array.isArray(input.openAiStreamTransformModels)) {
+        throw new Error("openAiStreamTransformModels must be an array");
+      }
+      this.settings.openAiStreamTransformModels = [...new Set(input.openAiStreamTransformModels
+        .map((model) => String(model).trim())
+        .filter(Boolean))];
+    }
 
     this.persist();
     return this.get();
