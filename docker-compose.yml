@@ -1,9 +1,6 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: opencode-proxy-hub:local
+    image: jlny/opencode-proxy-hub:latest
     restart: unless-stopped
     depends_on:
       redis:

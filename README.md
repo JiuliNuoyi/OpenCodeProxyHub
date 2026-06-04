@@ -25,9 +25,47 @@ OpenCodeProxyHub 基于 MIT 许可证开源，派生并大量借鉴自 [`opencod
 
 ## 部署方式
 
-项目支持两种部署方式：**本地源码运行**（适合开发/单机直接跑）与 **Docker Compose**（适合生产，自带 Redis）。
+项目支持三种部署方式，按方便程度排序：**拉取镜像快速部署**（最省事，推荐）、**本地构建 Docker 镜像**（改了源码想用容器跑）、**本地源码运行**（开发调试）。
 
-### 方式一：本地源码运行
+三种方式都会在宿主机 `./data` 持久化配置（API Key、模型、代理、设置），容器删除重建数据仍在。
+
+### 方式一：拉取镜像快速部署（推荐）
+
+无需 clone 源码，只要一个 `docker-compose.yml` 即可启动**应用 + Redis**：
+
+```bash
+# 1. 下载编排文件与环境模板
+curl -O https://raw.githubusercontent.com/JiuliNuoyi/OpenCodeProxyHub/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/JiuliNuoyi/OpenCodeProxyHub/main/.env.docker.example
+
+# 2. 准备环境文件，并设置一个强密码
+cp .env.docker.example .env.docker
+#   编辑 .env.docker，把 ADMIN_PASSWORD 改成强密码
+
+# 3. 启动（自动从 Docker Hub 拉取 jlny/opencode-proxy-hub 镜像）
+docker compose up -d
+```
+
+启动后控制台在 `http://127.0.0.1:6446/app`，用 `.env.docker` 中的 `ADMIN_PASSWORD` 解锁。
+
+升级到最新镜像：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### 方式二：本地构建 Docker 镜像（改了源码）
+
+clone 源码后，用开发覆盖文件从当前代码构建镜像再启动：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+`docker-compose.dev.yml` 只覆盖镜像来源（改为本地 `build`），端口、卷、Redis、健康检查等都继承自主文件。
+
+### 方式三：本地源码运行（开发调试）
 
 ```bash
 # 1. 安装依赖（后端 + 前端）
@@ -43,43 +81,19 @@ npm run dev          # 开发模式，热重载
 npm start            # 运行已构建的 dist/main.js
 ```
 
-默认监听 `http://localhost:6446`，控制台在 `http://localhost:6446/app`。
-
-首次启动会在 `api-keys.json` 自动生成 `admin` 与 `user-default` 两个 Key，明文仅在启动日志中显示一次，文件里只保存 SHA-256 哈希。管理接口与控制台默认使用控制台密码 `admin`（即 `ADMIN_PASSWORD`），**对外暴露前务必修改**。
-
-本地运行时限流默认走内存（`REDIS_URL` 留空）；如需分布式限流可另行配置 Redis。
+默认监听 `http://localhost:6446`，控制台在 `http://localhost:6446/app`。本地运行时限流默认走内存（`REDIS_URL` 留空）；如需分布式限流可另行配置 Redis。
 
 常用脚本：
 
 ```bash
 npm run dev          # 后端开发模式（tsx watch）
 npm run dev:web      # 前端开发服务器（Vite）
-npm run build        # 仅构建后端
-npm run build:web    # 仅构建前端
 npm run build:all    # 构建后端 + 前端
 npm run typecheck    # 类型检查（不产出）
 npm start            # 运行已构建的 dist/main.js
 ```
 
-### 方式二：Docker Compose（推荐）
-
-```bash
-cp .env.docker.example .env.docker
-# 编辑 .env.docker，设置强 ADMIN_PASSWORD
-docker compose up -d --build
-```
-
-- Compose 同时启动**应用 + Redis**；运行期 JSON 文件挂载到 `./data`，日志挂载到 `./logs`，Redis 数据存于 `redis-data` 卷。
-- 自带健康检查（命中 `GET /health`）与优雅停机。
-- 控制台在 `http://127.0.0.1:6446/app`，用 `.env.docker` 中的 `ADMIN_PASSWORD` 解锁。
-
-升级：
-
-```bash
-docker compose pull
-docker compose up -d --build
-docker compose logs -f app
-```
+> 首次启动会在 `api-keys.json` 自动生成 `admin` 与 `user-default` 两个 Key，明文仅在启动日志中显示一次，文件里只保存 SHA-256 哈希。管理接口与控制台默认密码为 `admin`（即 `ADMIN_PASSWORD`），**对外暴露前务必修改**。
 
 更多健康检查、冒烟测试、备份、反向代理与升级说明见 [`DEPLOYMENT.md`](./DEPLOYMENT.md)。公网部署建议在前面再放一层 Nginx/Caddy 等 HTTPS 反向代理（需保留 `Authorization`/`x-api-key` 头、支持长连接 SSE、关闭对流式路径的缓冲）。
 
