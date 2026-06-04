@@ -3,6 +3,7 @@ import https from "node:https";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { SocksProxyAgent } from "socks-proxy-agent";
 import { JsonFileStore } from "../storage/jsonFile.js";
+import type { SettingsStore } from "../settings/settingsStore.js";
 import { HttpPreProxyToHttpAgent, HttpPreProxyToSocksAgent } from "./chainedAgent.js";
 
 export type ProxyType = "http" | "https" | "socks5";
@@ -64,7 +65,7 @@ export class ProxyPoolStore {
   private readonly store: JsonFileStore<ProxyFile>;
   private proxies: ProxyNode[] = [];
 
-  constructor(proxiesFile: string, private readonly preProxyUrl = "", private readonly requireProxy = false) {
+  constructor(proxiesFile: string, private readonly settingsStore: SettingsStore, private readonly requireProxy = false) {
     this.store = new JsonFileStore<ProxyFile>(proxiesFile);
   }
 
@@ -229,8 +230,10 @@ export class ProxyPoolStore {
   }
 
   private createAgent(node: ProxyNode): https.Agent {
-    if (this.preProxyUrl && node.type === "socks5") return new HttpPreProxyToSocksAgent(this.preProxyUrl, node.url);
-    if (this.preProxyUrl && ["http", "https"].includes(node.type)) return new HttpPreProxyToHttpAgent(this.preProxyUrl, node.url);
+    const settings = this.settingsStore.get();
+    const preProxyUrl = settings.outboundPreProxyEnabled ? settings.outboundPreProxyUrl : "";
+    if (preProxyUrl && node.type === "socks5") return new HttpPreProxyToSocksAgent(preProxyUrl, node.url);
+    if (preProxyUrl && ["http", "https"].includes(node.type)) return new HttpPreProxyToHttpAgent(preProxyUrl, node.url);
     return node.type === "socks5" ? new SocksProxyAgent(node.url) as unknown as https.Agent : new HttpsProxyAgent(node.url) as unknown as https.Agent;
   }
 

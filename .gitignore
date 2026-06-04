@@ -12,3 +12,10 @@ settings.json
 proxies.json
 data/
 *.tsbuildinfo
+
+# Local artifacts / scratch (not part of the project)
+tmp/
+backup/
+releases/
+.atomcode/
+.claude/

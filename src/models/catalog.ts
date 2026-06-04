@@ -1,11 +1,11 @@
-import { JsonFileStore } from "../storage/jsonFile.js";
+﻿import { JsonFileStore } from "../storage/jsonFile.js";
 
 export const DEFAULT_MODELS = [
   "deepseek-v4-flash-free",
   "big-pickle",
-  "minimax-m2.5-free",
   "nemotron-3-super-free",
-  "qwen3.6-plus-free",
+  "mimo-v2.5-free",
+  "minimax-m3-free",
 ] as const;
 
 export interface ModelConfig {
@@ -93,3 +93,5 @@ export class ModelConfigStore {
     this.store.write({ version: 1, models: this.models });
   }
 }
+
+

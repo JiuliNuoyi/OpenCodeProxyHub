@@ -18,7 +18,11 @@ import { MetricsStore, registerMetricsHooks } from "./observability/metrics.js";
 import { EventLogger } from "./observability/eventLogger.js";
 
 export const buildApp = async (config: AppConfig) => {
-  const settingsStore = new SettingsStore(config.settingsFile, { upstreamTimeoutMs: config.upstreamTimeoutMs });
+  const settingsStore = new SettingsStore(config.settingsFile, {
+    upstreamTimeoutMs: config.upstreamTimeoutMs,
+    outboundPreProxyEnabled: config.outboundPreProxyEnabled,
+    outboundPreProxyUrl: config.outboundPreProxyUrl,
+  });
   settingsStore.load();
   const settings = settingsStore.get();
 
@@ -36,7 +40,7 @@ export const buildApp = async (config: AppConfig) => {
   keyStore.load();
   const modelStore = new ModelConfigStore(config.modelsFile);
   modelStore.load();
-  const proxyPool = new ProxyPoolStore(config.proxiesFile, config.outboundPreProxyEnabled ? config.outboundPreProxyUrl : "", config.requireProxy);
+  const proxyPool = new ProxyPoolStore(config.proxiesFile, settingsStore, config.requireProxy);
   proxyPool.load();
   const sessions = new SessionStore();
   const requestTracker = new RequestTracker();
@@ -57,7 +61,7 @@ export const buildApp = async (config: AppConfig) => {
   await registerModelRoutes(app, modelStore);
   await registerAdminRoutes(app, config, keyStore, modelStore, settingsStore, proxyPool, limiter, requestTracker, metrics, eventLogger);
   await registerOpenAIRoutes(app, config, keyStore, modelStore, settingsStore, sessions, proxyPool, limiter, requestTracker, metrics, eventLogger);
-  await registerAnthropicRoutes(app, config, keyStore, modelStore, sessions, proxyPool, limiter, requestTracker, metrics, eventLogger);
+  await registerAnthropicRoutes(app, config, keyStore, modelStore, settingsStore, sessions, proxyPool, limiter, requestTracker, metrics, eventLogger);
   await registerWebRoutes(app);
 
   app.setNotFoundHandler(async (_request, reply) => {

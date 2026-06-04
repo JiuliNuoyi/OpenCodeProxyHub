@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ApiKeyStore } from "../auth/apiKeys.js";
 import type { AppConfig } from "../config/env.js";
 import type { ModelConfigStore } from "../models/catalog.js";
+import type { SettingsStore } from "../settings/settingsStore.js";
 import { prepareZenRequest, requestZenFull } from "../providers/zenClient.js";
 import { SessionStore, sessionScopeFromHeaders } from "../sessions/sessionStore.js";
 import { anthropicToOpenAI, handleAnthropicFullResponse, pipeZenAsAnthropic } from "../converters/anthropic.js";
@@ -17,6 +18,7 @@ export const registerAnthropicRoutes = async (
   config: AppConfig,
   keyStore: ApiKeyStore,
   modelStore: ModelConfigStore,
+  settingsStore: SettingsStore,
   sessions: SessionStore,
   proxyPool: ProxyPoolStore,
   limiter: AsyncLimiter,
@@ -77,6 +79,8 @@ export const registerAnthropicRoutes = async (
     const inputTokens = Math.trunc(JSON.stringify(messages).length / 4);
     app.log.info({ user: auth.name, model, stream: isStream, messageCount: messages.length }, "anthropic_request");
     const logRequest = (statusCode: number, extra: Record<string, unknown> = {}) => {
+      const currentSettings = settingsStore.get();
+      const node = prepared?.lease?.node ?? null;
       eventLogger.apiRequest({
         protocol: "anthropic",
         route: "/v1/messages",
@@ -88,6 +92,10 @@ export const registerAnthropicRoutes = async (
         messageCount: messages.length,
         statusCode,
         durationMs: Math.round(Number(process.hrtime.bigint() - started) / 1_000_000),
+        proxyId: node?.id ?? null,
+        proxyName: node?.name ?? (auth.policy.allowProxy === false ? "direct" : null),
+        proxyType: node?.type ?? null,
+        viaPreProxy: Boolean(node && currentSettings.outboundPreProxyEnabled && currentSettings.outboundPreProxyUrl),
         ...(eventLogger.shouldLogPrompts() ? { promptPreview: eventLogger.truncate(messages) } : {}),
         ...extra,
       });

@@ -5,6 +5,7 @@ import type { ModelConfigStore } from "../models/catalog.js";
 import type { SettingsStore } from "../settings/settingsStore.js";
 import { prepareZenRequest, pipeZenOpenAIResponse } from "../providers/zenClient.js";
 import { pipeAnthropicSseAsOpenAI } from "../converters/anthropicSseToOpenAi.js";
+import { pipeOpenAiStreamStrippingThink } from "../converters/openAiThinkTagToReasoning.js";
 import { SessionStore, sessionScopeFromHeaders } from "../sessions/sessionStore.js";
 import type { OpenAIChatRequest } from "../types/api.js";
 import type { ProxyPoolStore } from "../proxy/proxyPool.js";
@@ -92,8 +93,15 @@ export const registerOpenAIRoutes = async (
 
     const sessionId = sessions.getSession(sessionScopeFromHeaders(auth.id, "openai", model, request.headers));
     app.log.info({ user: auth.name, model, stream: isStream, messageCount: messages.length }, "openai_request");
+    const resolveTransform = (settings: ReturnType<typeof settingsStore.get>): string => {
+      if (!isStream) return "passthrough";
+      if (settings.openAiStreamTransformModels.includes(model)) return "anthropic-sse-to-openai";
+      if (settings.reasoningTagModels.includes(model)) return "think-to-reasoning";
+      return "passthrough";
+    };
     const logRequest = (statusCode: number, extra: Record<string, unknown> = {}) => {
       const currentSettings = settingsStore.get();
+      const node = prepared?.lease?.node ?? null;
       eventLogger.apiRequest({
         protocol: "openai",
         route: "/v1/chat/completions",
@@ -105,8 +113,12 @@ export const registerOpenAIRoutes = async (
         messageCount: messages.length,
         statusCode,
         durationMs: Math.round(Number(process.hrtime.bigint() - started) / 1_000_000),
+        proxyId: node?.id ?? null,
+        proxyName: node?.name ?? (auth.policy.allowProxy === false ? "direct" : null),
+        proxyType: node?.type ?? null,
+        viaPreProxy: Boolean(node && currentSettings.outboundPreProxyEnabled && currentSettings.outboundPreProxyUrl),
         ...(currentSettings.logPrompts ? { promptPreview: eventLogger.truncate(messages) } : {}),
-        transform: isStream && currentSettings.openAiStreamTransformModels.includes(model) ? "anthropic-sse-to-openai" : "passthrough",
+        transform: resolveTransform(currentSettings),
         ...extra,
       });
     };
@@ -123,11 +135,16 @@ export const registerOpenAIRoutes = async (
     }, auth.policy.allowProxy === false ? undefined : proxyPool);
 
     reply.hijack();
-    const transformModels = settingsStore.get().openAiStreamTransformModels;
-    if (isStream && transformModels.includes(model)) {
-      pipeAnthropicSseAsOpenAI(prepared, model, reply.raw, auth.policy.allowProxy === false ? undefined : proxyPool, metrics);
+    const activeSettings = settingsStore.get();
+    const effectiveProxyPool = auth.policy.allowProxy === false ? undefined : proxyPool;
+    if (isStream && activeSettings.openAiStreamTransformModels.includes(model)) {
+      pipeAnthropicSseAsOpenAI(prepared, model, reply.raw, effectiveProxyPool, metrics);
       return;
     }
-    pipeZenOpenAIResponse(prepared, isStream, reply.raw, auth.policy.allowProxy === false ? undefined : proxyPool, metrics);
+    if (isStream && activeSettings.reasoningTagModels.includes(model)) {
+      pipeOpenAiStreamStrippingThink(prepared, model, reply.raw, effectiveProxyPool, metrics);
+      return;
+    }
+    pipeZenOpenAIResponse(prepared, isStream, reply.raw, effectiveProxyPool, metrics);
   });
 };

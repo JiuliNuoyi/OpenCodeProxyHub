@@ -6,6 +6,9 @@ export interface SystemSettings {
   defaultStream: boolean;
   logPrompts: boolean;
   openAiStreamTransformModels: string[];
+  reasoningTagModels: string[];
+  outboundPreProxyEnabled: boolean;
+  outboundPreProxyUrl: string;
   logEnabled: boolean;
   logAudit: boolean;
   logApiRequests: boolean;
@@ -26,6 +29,9 @@ const DEFAULT_SETTINGS: SystemSettings = {
   defaultStream: false,
   logPrompts: false,
   openAiStreamTransformModels: [],
+  reasoningTagModels: [],
+  outboundPreProxyEnabled: false,
+  outboundPreProxyUrl: "",
   logEnabled: false,
   logAudit: true,
   logApiRequests: true,
@@ -87,6 +93,33 @@ export class SettingsStore {
       this.settings.openAiStreamTransformModels = [...new Set(input.openAiStreamTransformModels
         .map((model) => String(model).trim())
         .filter(Boolean))];
+    }
+
+    if (input.reasoningTagModels !== undefined) {
+      if (!Array.isArray(input.reasoningTagModels)) {
+        throw new Error("reasoningTagModels must be an array");
+      }
+      this.settings.reasoningTagModels = [...new Set(input.reasoningTagModels
+        .map((model) => String(model).trim())
+        .filter(Boolean))];
+    }
+
+    // Pre-proxy: validate the merged (patch + current) state so enabled never coexists with an empty/invalid url.
+    if (input.outboundPreProxyEnabled !== undefined || input.outboundPreProxyUrl !== undefined) {
+      const nextUrl = (input.outboundPreProxyUrl !== undefined ? input.outboundPreProxyUrl : this.settings.outboundPreProxyUrl).trim();
+      const nextEnabled = input.outboundPreProxyEnabled !== undefined ? Boolean(input.outboundPreProxyEnabled) : this.settings.outboundPreProxyEnabled;
+      if (nextUrl) {
+        let protocol = "";
+        try {
+          protocol = new URL(nextUrl).protocol;
+        } catch {
+          throw new Error("outboundPreProxyUrl must be a valid URL");
+        }
+        if (!["http:", "https:"].includes(protocol)) throw new Error("outboundPreProxyUrl must use http:// or https://");
+      }
+      if (nextEnabled && !nextUrl) throw new Error("outboundPreProxyUrl is required when outboundPreProxyEnabled is true");
+      this.settings.outboundPreProxyUrl = nextUrl;
+      this.settings.outboundPreProxyEnabled = nextEnabled;
     }
 
     this.persist();
