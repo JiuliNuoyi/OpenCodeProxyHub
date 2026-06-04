@@ -28,16 +28,27 @@ OpenCodeProxyHub has been substantially rewritten and expanded, but keeps this a
 
 ## Runtime And Build Dependencies
 
-OpenCodeProxyHub uses Node.js, TypeScript, Fastify, Redis client libraries, React, Vite, proxy agent libraries, and related transitive dependencies.
+OpenCodeProxyHub uses Node.js, TypeScript, Fastify, the `redis` client,
+`https-proxy-agent`, `socks-proxy-agent`, `dotenv`, React, Vite, Tailwind CSS,
+daisyUI, and their related transitive dependencies.
 
-The dependency license review performed during development found the dependency set to be composed of permissive licenses compatible with MIT distribution, including:
+The dependency license review performed during development found the dependency
+set to be composed of permissive licenses compatible with MIT distribution,
+including:
 
 - MIT
 - ISC
 - BSD-2-Clause / BSD-3-Clause
 - Apache-2.0
+- BlueOak-1.0.0 — used by several `isaacs` packages pulled in transitively
+  (e.g. `glob`, `lru-cache`, `minimatch`, `minipass`, `jackspeak`,
+  `path-scurry`). BlueOak-1.0.0 is an OSI-approved permissive license.
+- CC-BY-4.0 — applies only to `caniuse-lite`, a build-time browser-compatibility
+  data set pulled in by `browserslist` / `autoprefixer`. It is not included in
+  the runtime output and only requires attribution.
 
-No GPL, AGPL, or LGPL dependency was identified in the application dependency set during this review.
+No GPL, AGPL, or LGPL dependency was identified in the application dependency set
+during this review.
 
 If you redistribute a built Docker image, also review and preserve notices for the base image and operating system packages included by `node:20-alpine`.
 
