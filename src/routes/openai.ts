@@ -99,6 +99,7 @@ export const registerOpenAIRoutes = async (
       if (settings.reasoningTagModels.includes(model)) return "think-to-reasoning";
       return "passthrough";
     };
+    const useProxy = (settings: ReturnType<typeof settingsStore.get>): boolean => settings.proxyMode !== "direct" && auth.policy.allowProxy !== false;
     const logRequest = (statusCode: number, extra: Record<string, unknown> = {}) => {
       const currentSettings = settingsStore.get();
       const node = prepared?.lease?.node ?? null;
@@ -114,7 +115,7 @@ export const registerOpenAIRoutes = async (
         statusCode,
         durationMs: Math.round(Number(process.hrtime.bigint() - started) / 1_000_000),
         proxyId: node?.id ?? null,
-        proxyName: node?.name ?? (auth.policy.allowProxy === false ? "direct" : null),
+        proxyName: node?.name ?? (useProxy(currentSettings) ? null : "direct"),
         proxyType: node?.type ?? null,
         viaPreProxy: Boolean(node && currentSettings.outboundPreProxyEnabled && currentSettings.outboundPreProxyUrl),
         ...(currentSettings.logPrompts ? { promptPreview: eventLogger.truncate(messages) } : {}),
@@ -124,6 +125,8 @@ export const registerOpenAIRoutes = async (
     };
     reply.raw.once("finish", () => logRequest(reply.raw.statusCode));
 
+    const activeSettings = settingsStore.get();
+    const effectiveProxyPool = useProxy(activeSettings) ? proxyPool : undefined;
     const prepared = prepareZenRequest(config, {
       model,
       messages,
@@ -132,11 +135,9 @@ export const registerOpenAIRoutes = async (
       toolChoice: tool_choice,
       parameters: { temperature, top_p, max_tokens, stop, presence_penalty, frequency_penalty, response_format, seed, user },
       sessionId,
-    }, auth.policy.allowProxy === false ? undefined : proxyPool);
+    }, effectiveProxyPool);
 
     reply.hijack();
-    const activeSettings = settingsStore.get();
-    const effectiveProxyPool = auth.policy.allowProxy === false ? undefined : proxyPool;
     if (isStream && activeSettings.openAiStreamTransformModels.includes(model)) {
       pipeAnthropicSseAsOpenAI(prepared, model, reply.raw, effectiveProxyPool, metrics);
       return;

@@ -119,8 +119,8 @@ npm start            # 运行已构建的 dist/main.js
   - 连续 5 次上游 429 自动禁用节点；非 429 失败进入冷却（默认 5 分钟）
   - 每日请求上限与按日自动重置，可选“达上限自动禁用 / 次日自动恢复”
   - 节点连通性测试、成功/失败计数、最近 20 次请求结果（用于前端可视化）
+  - **代理使用模式**：可在控制台选择直连、优先代理或强制代理；优先代理模式下无可用节点会自动直连
   - **链式前置代理**：所有节点出站可先经一个本机 HTTP/HTTPS 前置代理再连上游，适合节点无法直连、需先走本机代理出网的网络；可在控制台热重载开关与地址，**无需重启**
-  - `REQUIRE_PROXY=true` 时无可用节点直接失败，而不是回退直连
 - **限流**
   - 全局每分钟请求数 + 单 Key 每分钟请求数 + 单 Key 并发请求/并发流上限
   - 默认内存实现；配置 `REDIS_URL` 后自动切换为基于 Redis Lua 脚本的分布式限流（支持多实例）
@@ -205,7 +205,7 @@ web/src/
 4. **限流**：依次校验全局 RPM、单 Key RPM、并发请求数、并发流数（Key 策略可覆盖默认值）；超限返回 429 并带 `Retry-After`。
 5. **模型校验**：模型必须存在且启用，且在该 Key 的模型白名单内（白名单为空=全部允许）；否则 400/403。
 6. **会话解析**：按 (Key, 协议, 模型, 头部) 解析/复用一个上游会话 ID。
-7. **构造上游请求**：`prepareZenRequest` 组装上游请求体与 `x-opencode-*` 头；若该 Key 允许代理，则从**代理池**按优先填充取一个节点（lease），并据当前设置决定是否再套一层**链式前置代理**。
+7. **构造上游请求**：`prepareZenRequest` 组装上游请求体与 `x-opencode-*` 头；按当前代理使用模式与 Key 策略决定是否从**代理池**按优先填充取一个节点（lease），并据当前设置决定是否再套一层**链式前置代理**。
 8. **响应处理（按模型路由）**：
    - 命中 `openAiStreamTransformModels` → `anthropic-sse-to-openai` 转换后转发；
    - 命中 `reasoningTagModels` → `think-to-reasoning` 抽取 `<think>` 后转发；
@@ -253,7 +253,7 @@ curl http://127.0.0.1:6446/v1/messages \
 - **API Keys**：创建（明文显示一次并可复制）、启用/禁用、删除、备注与标签、每 Key 策略（RPM、并发、模型白名单、是否允许代理）、查看请求量与最近客户端
 - **模型**：启用/禁用模型，按模型开启 `anthropic-sse-to-openai` 与 `think-to-reasoning` 两种流式转换
 - **设置**：上游超时、请求体限制、默认流式、文件日志与审计开关、Prompt 记录、日志正文上限与保留天数
-- **代理池**：新增/编辑/删除/测试节点，查看优先节点、成功率、近 N 次请求结果色条、用量/并发/连续 429 仪表，开关与配置链式前置代理（热重载）
+- **代理池**：新增/编辑/删除/测试节点，查看优先节点、成功率、近 N 次请求结果色条、用量/并发/连续 429 仪表，切换代理使用模式，开关与配置链式前置代理（热重载）
 - **监控**：HTTP/上游请求量、错误率、延迟分位、状态码与路由分布、限流器后端、运行时长、最近错误
 
 控制台密码或开发 API Key 保存在浏览器本地存储中。
@@ -282,15 +282,17 @@ REDIS_URL=                              # 留空=内存限流；填写=Redis 分
 REDIS_KEY_PREFIX=opencode-proxy-hub:limit
 SHUTDOWN_DRAIN_TIMEOUT_MS=30000         # 优雅停机排空超时
 STORE_PLAINTEXT_API_KEYS=false          # 是否额外保存可恢复明文
+PROXY_MODE=optional                     # 代理使用模式：direct / optional / required
 OUTBOUND_PRE_PROXY_ENABLED=false        # 是否启用链式前置代理
 OUTBOUND_PRE_PROXY_URL=                 # 前置代理地址（http/https）
-REQUIRE_PROXY=false                     # 无可用代理时是否直接失败
+REQUIRE_PROXY=false                     # 兼容旧配置；未设置 PROXY_MODE 时 true 等价于 required
 ```
 
-设置项中的 `upstreamTimeoutMs`、前置代理开关与地址等也可在运行时通过控制台或 `PATCH /admin/settings` **热更新**，无需重启。
+设置项中的 `upstreamTimeoutMs`、代理使用模式、前置代理开关与地址等也可在运行时通过控制台或 `PATCH /admin/settings` **热更新**，无需重启。
 
 ## 出口代理与前置代理
 
+- 代理使用模式支持三种：`direct` 强制直连，`optional` 有可用代理则使用、否则直连，`required` 必须使用代理、无可用节点则失败。
 - 代理池节点正常情况下**直连**自己配置的代理 URL。
 - 选择策略为**优先填充**：按权重从高到低排序，持续使用第一个“启用、未冷却、未达每日上限、未达并发上限”的节点。
 - 节点连续 5 次收到上游 429 会被自动禁用，需手动重新启用；其他失败会进入冷却（默认 5 分钟）。
@@ -302,7 +304,7 @@ OUTBOUND_PRE_PROXY_URL=http://host.docker.internal:7897
 ```
 
   前置代理为 HTTP/HTTPS，可链接到 `http`、`https`、`socks5` 三类代理池节点；开关与地址支持控制台热重载，对下一个请求即时生效。
-- `REQUIRE_PROXY=true` 时，没有可用代理节点的请求会直接失败，而不是回退到直连上游。
+- `PROXY_MODE=required` 时，没有可用代理节点的请求会直接失败，而不是回退到直连上游。
 
 ## 限流
 

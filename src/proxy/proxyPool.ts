@@ -65,7 +65,7 @@ export class ProxyPoolStore {
   private readonly store: JsonFileStore<ProxyFile>;
   private proxies: ProxyNode[] = [];
 
-  constructor(proxiesFile: string, private readonly settingsStore: SettingsStore, private readonly requireProxy = false) {
+  constructor(proxiesFile: string, private readonly settingsStore: SettingsStore) {
     this.store = new JsonFileStore<ProxyFile>(proxiesFile);
   }
 
@@ -131,7 +131,7 @@ export class ProxyPoolStore {
       .sort((a, b) => b.weight - a.weight);
 
     const node = candidates[0];
-    if (!node) return { node: null, requiredUnavailable: this.requireProxy };
+    if (!node) return { node: null, requiredUnavailable: this.settingsStore.get().proxyMode === "required" };
 
     node.currentConcurrency += 1;
     node.dailyRequestCount += 1;

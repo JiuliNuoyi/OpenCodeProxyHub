@@ -7,6 +7,7 @@ export interface SystemSettings {
   logPrompts: boolean;
   openAiStreamTransformModels: string[];
   reasoningTagModels: string[];
+  proxyMode: "direct" | "optional" | "required";
   outboundPreProxyEnabled: boolean;
   outboundPreProxyUrl: string;
   logEnabled: boolean;
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   logPrompts: false,
   openAiStreamTransformModels: [],
   reasoningTagModels: [],
+  proxyMode: "optional",
   outboundPreProxyEnabled: false,
   outboundPreProxyUrl: "",
   logEnabled: false,
@@ -102,6 +104,13 @@ export class SettingsStore {
       this.settings.reasoningTagModels = [...new Set(input.reasoningTagModels
         .map((model) => String(model).trim())
         .filter(Boolean))];
+    }
+
+    if (input.proxyMode !== undefined) {
+      if (!["direct", "optional", "required"].includes(input.proxyMode)) {
+        throw new Error("proxyMode must be direct, optional, or required");
+      }
+      this.settings.proxyMode = input.proxyMode;
     }
 
     // Pre-proxy: validate the merged (patch + current) state so enabled never coexists with an empty/invalid url.

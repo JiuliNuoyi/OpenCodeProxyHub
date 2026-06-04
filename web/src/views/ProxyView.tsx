@@ -6,6 +6,12 @@ import { MeterBar } from "../components/MeterBar";
 import { ResultStrip } from "../components/ResultStrip";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
+const proxyModes = [
+  { value: "direct", label: "直连", description: "所有请求不使用代理池" },
+  { value: "optional", label: "优先代理", description: "有可用节点则使用，否则直连" },
+  { value: "required", label: "强制代理", description: "无可用节点时请求失败" },
+] as const;
+
 const stateBadge = (proxy: ProxyNode): { label: string; cls: string } => {
   if (!proxy.enabled) return { label: "已禁用", cls: "badge-ghost" };
   if (proxy.consecutiveRateLimitCount >= 3) return { label: "429 风险", cls: "badge-warning" };
@@ -19,6 +25,7 @@ export function ProxyView({ data }: { data: ConsoleData }) {
   const [draft, setDraft] = useState<ProxyDraft>({ name: "香港节点 1", type: "http", url: "", dailyRequestLimit: 1000, maxConcurrency: 10 });
   const [deleteTarget, setDeleteTarget] = useState<ProxyNode | null>(null);
 
+  const proxyMode = settings?.proxyMode ?? "optional";
   const preProxyEnabled = Boolean(settings?.outboundPreProxyEnabled);
   const [preProxyDraft, setPreProxyDraft] = useState("");
   // Keep the address draft in sync with the persisted value when settings (re)load.
@@ -46,10 +53,33 @@ export function ProxyView({ data }: { data: ConsoleData }) {
       <div className="card bg-base-100 shadow-sm">
         <div className="card-body gap-3">
           <div className="flex items-center gap-2">
+            <Route size={16} className="text-primary" />
+            <h2 className="card-title text-base">代理使用模式</h2>
+          </div>
+          <p className="text-xs text-base-content/50">控制请求是否使用出口代理池。该设置对下一个请求即时生效，无需重启。</p>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            {proxyModes.map((mode) => (
+              <button
+                key={mode.value}
+                className={`oph-inset p-3 text-left transition ${proxyMode === mode.value ? "ring-2 ring-primary/50" : "hover:bg-base-200/60"}`}
+                disabled={busy || !settings}
+                onClick={() => updateSettings({ proxyMode: mode.value })}
+              >
+                <span className="block text-sm font-semibold">{mode.label}</span>
+                <span className="text-xs text-base-content/50">{mode.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="card bg-base-100 shadow-sm">
+        <div className="card-body gap-3">
+          <div className="flex items-center gap-2">
             <Waypoints size={16} className="text-primary" />
             <h2 className="card-title text-base">出站前置代理（链式代理）</h2>
           </div>
-          <p className="text-xs text-base-content/50">开启后，所有代理节点的出站连接会先经此本机地址再连上游，用于代理节点无法直连、需先走本机代理出网的网络。修改后对下一个请求即时生效，无需重启。</p>
+          <p className="text-xs text-base-content/50">开启后，所有代理节点的出站连接会先经此本机地址再连上游。仅当代理使用模式不是“直连”且请求实际选中代理节点时生效，修改后无需重启。</p>
 
           <label className="oph-inset flex cursor-pointer items-start gap-2 p-2">
             <input

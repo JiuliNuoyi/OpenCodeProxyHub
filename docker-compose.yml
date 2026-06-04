@@ -11,17 +11,18 @@ services:
     environment:
       PROXY_HOST: 0.0.0.0
       PROXY_PORT: 6446
-      ADMIN_PASSWORD: admin
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       KEYS_FILE: /app/data/api-keys.json
       MODELS_FILE: /app/data/models.json
       SETTINGS_FILE: /app/data/settings.json
       PROXIES_FILE: /app/data/proxies.json
       LOGS_DIR: /app/logs
       REDIS_URL: redis://redis:6379
-      STORE_PLAINTEXT_API_KEYS: "true"
-      OUTBOUND_PRE_PROXY_ENABLED: "true"
-      OUTBOUND_PRE_PROXY_URL: http://host.docker.internal:7897
-      REQUIRE_PROXY: "true"
+      STORE_PLAINTEXT_API_KEYS: ${STORE_PLAINTEXT_API_KEYS:-true}
+      PROXY_MODE: ${PROXY_MODE:-optional}
+      OUTBOUND_PRE_PROXY_ENABLED: ${OUTBOUND_PRE_PROXY_ENABLED:-false}
+      OUTBOUND_PRE_PROXY_URL: ${OUTBOUND_PRE_PROXY_URL:-http://host.docker.internal:7897}
+      REQUIRE_PROXY: ${REQUIRE_PROXY:-false}
     ports:
       - "6446:6446"
     volumes:

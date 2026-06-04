@@ -39,6 +39,7 @@ export interface SystemSettings {
   logPrompts: boolean;
   openAiStreamTransformModels: string[];
   reasoningTagModels: string[];
+  proxyMode: "direct" | "optional" | "required";
   outboundPreProxyEnabled: boolean;
   outboundPreProxyUrl: string;
   logEnabled: boolean;

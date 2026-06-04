@@ -105,7 +105,21 @@ Minimum proxy requirements:
 - disable response buffering for SSE paths if possible
 - forward client disconnects promptly
 
-## Outbound Pre-Proxy
+## Outbound Proxy Mode and Pre-Proxy
+
+Proxy mode controls whether requests use the proxy pool:
+
+```text
+PROXY_MODE=optional
+```
+
+Supported values:
+
+- `direct`: never use the proxy pool
+- `optional`: use the first available proxy-pool node, otherwise fall back to direct upstream access
+- `required`: require a proxy-pool node; fail the request when no node is available
+
+`REQUIRE_PROXY=true` is kept as a legacy fallback when `PROXY_MODE` is not set, and is equivalent to `PROXY_MODE=required`.
 
 If the Docker container cannot directly reach a proxy provider, enable the outbound pre-proxy chain:
 
@@ -126,7 +140,7 @@ Proxy-pool node types supported in chained mode: `http`, `https`, and `socks5`.
 
 If `OUTBOUND_PRE_PROXY_ENABLED=false`, proxy-pool nodes use the original direct single-proxy behavior.
 
-Proxy selection uses priority fill. The first available enabled node is used until it is unavailable, full, daily-limited, or disabled. A node is automatically disabled after 5 consecutive upstream 429 responses and requires manual re-enable. Use `REQUIRE_PROXY=true` when requests must never fall back to direct upstream access.
+Proxy selection uses priority fill. The first available enabled node is used until it is unavailable, full, daily-limited, or disabled. A node is automatically disabled after 5 consecutive upstream 429 responses and requires manual re-enable. Use `PROXY_MODE=required` when requests must never fall back to direct upstream access.
 
 ## Upgrade
 

@@ -13,6 +13,12 @@ const boolFromEnv = (name: string, fallback: boolean): boolean => {
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
 };
 
+const proxyModeFromEnv = (): "direct" | "optional" | "required" => {
+  const raw = process.env.PROXY_MODE?.toLowerCase();
+  if (raw === "direct" || raw === "optional" || raw === "required") return raw;
+  return boolFromEnv("REQUIRE_PROXY", false) ? "required" : "optional";
+};
+
 export interface AppConfig {
   host: string;
   port: number;
@@ -33,9 +39,9 @@ export interface AppConfig {
   redisKeyPrefix: string;
   shutdownDrainTimeoutMs: number;
   storePlaintextApiKeys: boolean;
+  proxyMode: "direct" | "optional" | "required";
   outboundPreProxyEnabled: boolean;
   outboundPreProxyUrl: string;
-  requireProxy: boolean;
 }
 
 export const loadConfig = (): AppConfig => ({
@@ -58,7 +64,7 @@ export const loadConfig = (): AppConfig => ({
   redisKeyPrefix: process.env.REDIS_KEY_PREFIX || "opencode-proxy-hub:limit",
   shutdownDrainTimeoutMs: intFromEnv("SHUTDOWN_DRAIN_TIMEOUT_MS", 30000),
   storePlaintextApiKeys: boolFromEnv("STORE_PLAINTEXT_API_KEYS", false),
+  proxyMode: proxyModeFromEnv(),
   outboundPreProxyEnabled: boolFromEnv("OUTBOUND_PRE_PROXY_ENABLED", false),
   outboundPreProxyUrl: process.env.OUTBOUND_PRE_PROXY_URL || "",
-  requireProxy: boolFromEnv("REQUIRE_PROXY", false),
 });

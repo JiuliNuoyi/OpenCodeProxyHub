@@ -20,6 +20,7 @@ import { EventLogger } from "./observability/eventLogger.js";
 export const buildApp = async (config: AppConfig) => {
   const settingsStore = new SettingsStore(config.settingsFile, {
     upstreamTimeoutMs: config.upstreamTimeoutMs,
+    proxyMode: config.proxyMode,
     outboundPreProxyEnabled: config.outboundPreProxyEnabled,
     outboundPreProxyUrl: config.outboundPreProxyUrl,
   });
@@ -40,7 +41,7 @@ export const buildApp = async (config: AppConfig) => {
   keyStore.load();
   const modelStore = new ModelConfigStore(config.modelsFile);
   modelStore.load();
-  const proxyPool = new ProxyPoolStore(config.proxiesFile, settingsStore, config.requireProxy);
+  const proxyPool = new ProxyPoolStore(config.proxiesFile, settingsStore);
   proxyPool.load();
   const sessions = new SessionStore();
   const requestTracker = new RequestTracker();

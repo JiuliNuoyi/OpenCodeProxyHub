@@ -78,6 +78,7 @@ export const registerAnthropicRoutes = async (
     const { messages, tools, toolChoice, parameters } = anthropicToOpenAI(request.body);
     const inputTokens = Math.trunc(JSON.stringify(messages).length / 4);
     app.log.info({ user: auth.name, model, stream: isStream, messageCount: messages.length }, "anthropic_request");
+    const useProxy = (settings: ReturnType<typeof settingsStore.get>): boolean => settings.proxyMode !== "direct" && auth.policy.allowProxy !== false;
     const logRequest = (statusCode: number, extra: Record<string, unknown> = {}) => {
       const currentSettings = settingsStore.get();
       const node = prepared?.lease?.node ?? null;
@@ -93,7 +94,7 @@ export const registerAnthropicRoutes = async (
         statusCode,
         durationMs: Math.round(Number(process.hrtime.bigint() - started) / 1_000_000),
         proxyId: node?.id ?? null,
-        proxyName: node?.name ?? (auth.policy.allowProxy === false ? "direct" : null),
+        proxyName: node?.name ?? (useProxy(currentSettings) ? null : "direct"),
         proxyType: node?.type ?? null,
         viaPreProxy: Boolean(node && currentSettings.outboundPreProxyEnabled && currentSettings.outboundPreProxyUrl),
         ...(eventLogger.shouldLogPrompts() ? { promptPreview: eventLogger.truncate(messages) } : {}),
@@ -102,6 +103,8 @@ export const registerAnthropicRoutes = async (
     };
     reply.raw.once("finish", () => logRequest(reply.raw.statusCode));
 
+    const activeSettings = settingsStore.get();
+    const effectiveProxyPool = useProxy(activeSettings) ? proxyPool : undefined;
     const prepared = prepareZenRequest(config, {
       model,
       messages,
@@ -110,16 +113,16 @@ export const registerAnthropicRoutes = async (
       toolChoice,
       parameters,
       sessionId,
-    }, auth.policy.allowProxy === false ? undefined : proxyPool);
+    }, effectiveProxyPool);
 
     if (isStream) {
       reply.hijack();
-      pipeZenAsAnthropic(prepared, model, reply.raw, inputTokens, auth.policy.allowProxy === false ? undefined : proxyPool, metrics);
+      pipeZenAsAnthropic(prepared, model, reply.raw, inputTokens, effectiveProxyPool, metrics);
       return;
     }
 
     try {
-      const zenResp = await requestZenFull(prepared, auth.policy.allowProxy === false ? undefined : proxyPool, metrics);
+      const zenResp = await requestZenFull(prepared, effectiveProxyPool, metrics);
       const result = handleAnthropicFullResponse(zenResp, model, inputTokens);
       return reply.code(result.status).send(result.body);
     } catch (error) {
