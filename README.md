@@ -23,6 +23,21 @@ OpenCodeProxyHub 基于 MIT 许可证开源，派生并大量借鉴自 [`opencod
 - Any consequences and liabilities arising from use, modification, or distribution of this project are borne solely by the user. The authors and contributors accept no liability.
 - This project has no affiliation, authorization, or partnership with OpenCode, `opencode-free-proxy`, or any third-party service provider.
 
+## 可用免费模型
+
+OpenCodeProxyHub 默认内置以下免费模型，均可通过 OpenAI 兼容接口 `/v1/chat/completions` 与 Anthropic 兼容接口 `/v1/messages` 调用：
+
+| 模型 ID | 说明 |
+|--------|------|
+| `deepseek-v4-flash-free` | DeepSeek 免费模型 |
+| `big-pickle` | OpenCode 免费模型 |
+| `nemotron-3-super-free` | Nvidia Nemotron 3 Super 免费模型 |
+| `nemotron-3-ultra-free` | Nvidia Nemotron 3 Ultra 免费模型 |
+| `mimo-v2.5-free` | Mimo v2.5 免费模型 |
+| `minimax-m3-free` | MiniMax M3 免费模型 |
+
+新部署会自动生成以上默认模型；已有部署升级后，缺失的默认免费模型会自动追加到已有 `models.json`，不会覆盖用户已修改的模型配置。
+
 ## 部署方式
 
 项目支持三种部署方式，按方便程度排序：**拉取镜像快速部署**（最省事，推荐）、**本地构建 Docker 镜像**（改了源码想用容器跑）、**本地源码运行**（开发调试）。
@@ -103,14 +118,7 @@ npm start            # 运行已构建的 dist/main.js
   - OpenAI 兼容：`POST /v1/chat/completions`、`GET /v1/models`
   - Anthropic 兼容：`POST /v1/messages`
   - 同时支持流式（SSE）与非流式
-- **默认可用免费模型**
-  - `deepseek-v4-flash-free`
-  - `big-pickle`
-  - `nemotron-3-super-free`
-  - `nemotron-3-ultra-free`
-  - `mimo-v2.5-free`
-  - `minimax-m3-free`
-  - 新增默认免费模型会在升级后自动追加到已有 `models.json`，不会覆盖已修改的模型配置
+- **默认免费模型**：内置 6 个可用免费模型，详见上方“可用免费模型”
 - **流式归一化转换（可按模型开启）**
   - `anthropic-sse-to-openai`：把上游的 Anthropic 风格 SSE 转成 OpenAI 风格 SSE
   - `think-to-reasoning`：把内联在 `delta.content` 里的 `<think>...</think>` 推理内容抽取到 `reasoning_content` 字段，正文只保留答案（支持标签跨 chunk 的状态机处理）
