@@ -1,6 +1,6 @@
 {
   "name": "opencode-proxy-hub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenAI and Anthropic compatible gateway for OpenCode free models",
   "type": "module",
   "main": "dist/main.js",
