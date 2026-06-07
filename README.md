@@ -103,6 +103,14 @@ npm start            # 运行已构建的 dist/main.js
   - OpenAI 兼容：`POST /v1/chat/completions`、`GET /v1/models`
   - Anthropic 兼容：`POST /v1/messages`
   - 同时支持流式（SSE）与非流式
+- **默认可用免费模型**
+  - `deepseek-v4-flash-free`
+  - `big-pickle`
+  - `nemotron-3-super-free`
+  - `nemotron-3-ultra-free`
+  - `mimo-v2.5-free`
+  - `minimax-m3-free`
+  - 新增默认免费模型会在升级后自动追加到已有 `models.json`，不会覆盖已修改的模型配置
 - **流式归一化转换（可按模型开启）**
   - `anthropic-sse-to-openai`：把上游的 Anthropic 风格 SSE 转成 OpenAI 风格 SSE
   - `think-to-reasoning`：把内联在 `delta.content` 里的 `<think>...</think>` 推理内容抽取到 `reasoning_content` 字段，正文只保留答案（支持标签跨 chunk 的状态机处理）

@@ -4,6 +4,7 @@ export const DEFAULT_MODELS = [
   "deepseek-v4-flash-free",
   "big-pickle",
   "nemotron-3-super-free",
+  "nemotron-3-ultra-free",
   "mimo-v2.5-free",
   "minimax-m3-free",
 ] as const;
@@ -38,7 +39,7 @@ export class ModelConfigStore {
 
   load(): void {
     const data = this.store.read({ version: 1, models: [] });
-    this.models = data.models.length > 0 ? data.models : this.defaultModels();
+    this.models = this.mergeDefaultModels(data.models);
     this.persist();
   }
 
@@ -89,9 +90,16 @@ export class ModelConfigStore {
     return DEFAULT_MODELS.map((id) => ({ id, enabled: true, ownedBy: "opencode-free", created: 1779000000 }));
   }
 
+  private mergeDefaultModels(models: ModelConfig[]): ModelConfig[] {
+    const merged = [...models];
+    const existingIds = new Set(merged.map((model) => model.id));
+    for (const model of this.defaultModels()) {
+      if (!existingIds.has(model.id)) merged.push(model);
+    }
+    return merged;
+  }
+
   private persist(): void {
     this.store.write({ version: 1, models: this.models });
   }
 }
-
-
